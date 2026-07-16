@@ -633,7 +633,9 @@ function cargarMantosJSON(cb){
 }
 
 function cargarHunterJSON(){
-  var urls=['datos_hunter.json?t='+Date.now(),
+  var urls=['datos_hunter_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
+    'datos_hunter.json?t='+Date.now(),
+    'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/datos_hunter_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
     'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/datos_hunter.json?t='+Date.now()];
   function tryUrl(idx){
     if(idx>=urls.length){setStatus('idle','Sin datos GPS');renderAll();return;}
