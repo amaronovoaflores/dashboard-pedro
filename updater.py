@@ -288,7 +288,27 @@ def consultar_revision_tecnica(token, placa):
         'fecha_vencimiento': fecha_a_iso(vigente_hasta),
     }
 
-def actualizar_soat_revision(token, placa, output_file):
+ANIOS_EXONERACION_PARTICULAR = 3  # Reglamento MTC: autos particulares, primeros 3 anios exonerados
+
+def revision_exonerada(placa, anio_vehiculo):
+    """Si el vehiculo es reciente, ni siquiera consulta la API: ahorra un credito."""
+    try:
+        anio = int(anio_vehiculo)
+    except (TypeError, ValueError):
+        return None
+    primer_anio = anio + ANIOS_EXONERACION_PARTICULAR
+    if datetime.now().year >= primer_anio:
+        return None  # ya le corresponde revision, seguir con la consulta normal
+    return {
+        'ok': True,
+        'exonerado': True,
+        'anio_vehiculo': anio,
+        'primera_revision_estimada': primer_anio,
+        'mensaje': (f'Vehiculo {anio}: exonerado de revision tecnica hasta {primer_anio} '
+                    f'(reglamento MTC, primeros {ANIOS_EXONERACION_PARTICULAR} anios)'),
+    }
+
+def actualizar_soat_revision(token, placa, anio_vehiculo, output_file):
     placa = normalizar_placa(placa)
     # Throttle: no volver a gastar creditos si ya se consulto hace menos de
     # JSONPE_THROTTLE_DIAS dias (SOAT/revision tecnica no cambian a diario).
@@ -307,7 +327,15 @@ def actualizar_soat_revision(token, placa, output_file):
 
     print(f"\n=== SOAT / REVISION TECNICA: {placa} ===")
     soat = consultar_soat(token, placa)
-    revision = consultar_revision_tecnica(token, placa)
+
+    exonerada = revision_exonerada(placa, anio_vehiculo)
+    if exonerada:
+        revision = exonerada
+        print(f"  Revision tecnica: EXONERADA hasta {exonerada['primera_revision_estimada']} (no se consulto la API)")
+    else:
+        revision = consultar_revision_tecnica(token, placa)
+        print(f"  Revision tecnica: {'OK' if revision.get('ok') else 'ERROR - ' + str(revision.get('error'))}")
+
     resultado = {
         'placa': placa,
         'soat': soat,
@@ -317,7 +345,6 @@ def actualizar_soat_revision(token, placa, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(resultado, f, ensure_ascii=False, indent=2)
     print(f"  SOAT: {'OK' if soat.get('ok') else 'ERROR - ' + str(soat.get('error'))}")
-    print(f"  Revision tecnica: {'OK' if revision.get('ok') else 'ERROR - ' + str(revision.get('error'))}")
 
 # -- MAIN ---------------------------------------------------------------------
 if __name__ == '__main__':
@@ -365,7 +392,7 @@ if __name__ == '__main__':
             print("  Sin GAPI_KEY (secret del repo) - saltando mantenimientos")
 
         if jsonpe_token:
-            actualizar_soat_revision(jsonpe_token, placa, f'datos_soat_{slug}.json')
+            actualizar_soat_revision(jsonpe_token, placa, v.get('anio_vehiculo'), f'datos_soat_{slug}.json')
 
     # Compatibilidad: si el cliente tiene un solo vehiculo, generar tambien
     # los nombres genericos datos_hunter.json / datos_mantos.json
