@@ -97,6 +97,12 @@ def procesar_dia(fecha_str, registros):
     tiene_km = 'kilometraje' in campos
     km_dia = odo_ini = odo_fin = 0
     fuente_km = 'haversine'
+    lats_todas = []; lons_todas = []
+    for reg in registros:
+        try:
+            lat = float(reg.get('latitud', 0) or 0); lon = float(reg.get('longitud', 0) or 0)
+            if lat and lon: lats_todas.append(lat); lons_todas.append(lon)
+        except: pass
     if tiene_km:
         odos = [float(r['kilometraje']) for r in registros if r.get('kilometraje') and float(r.get('kilometraje', 0)) > 0]
         if odos:
@@ -104,18 +110,16 @@ def procesar_dia(fecha_str, registros):
             km_dia = round(odo_fin - odo_ini, 1)
             fuente_km = 'hunter_kilometraje'
     else:
-        lats = []; lons = []
-        for reg in registros:
-            try:
-                lat = float(reg.get('latitud', 0) or 0); lon = float(reg.get('longitud', 0) or 0)
-                if lat and lon: lats.append(lat); lons.append(lon)
-            except: pass
-        for i in range(1, len(lats)):
-            km_dia += haversine(lats[i - 1], lons[i - 1], lats[i], lons[i])
+        for i in range(1, len(lats_todas)):
+            km_dia += haversine(lats_todas[i - 1], lons_todas[i - 1], lats_todas[i], lons_todas[i])
         km_dia = round(km_dia, 1)
+    # Ultima posicion GPS conocida ese dia (el ultimo registro con lat/lon validos)
+    ultima_lat = lats_todas[-1] if lats_todas else None
+    ultima_lon = lons_todas[-1] if lons_todas else None
     return {"fecha": fecha_str, "km": km_dia, "odo_ini": odo_ini, "odo_fin": odo_fin,
             "registros": len(registros), "campos": campos, "fuente_km": fuente_km,
-            "tiene_km": tiene_km, "tiene_odo": tiene_km}
+            "tiene_km": tiene_km, "tiene_odo": tiene_km,
+            "ultima_lat": ultima_lat, "ultima_lon": ultima_lon}
 
 def actualizar_hunter(usuario, contrasena, token, placa, output_file):
     print(f"\n=== HUNTER GPS: {placa} -> {output_file} ===")
@@ -150,6 +154,76 @@ def actualizar_hunter(usuario, contrasena, token, placa, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(datos, f, ensure_ascii=False, indent=2)
     print(f"  OK {output_file}: {nuevos} dias nuevos - total {len(datos['dias'])} dias")
+    return datos
+
+# -- GPS: DISPATCHER MULTI-PROVEEDOR ------------------------------------------
+# config.json -> gps.empresa decide que conector usar. Hoy solo Hunter esta
+# implementado; el panel admin ya permite elegir Comsatel/Tracklink/Otro pero
+# todavia no tienen conector propio - se agregan aca sin tocar el resto.
+def preparar_sesion_gps(empresa, usuario, contrasena):
+    empresa = (empresa or 'hunter').strip().lower()
+    if empresa == 'hunter':
+        try:
+            return {'empresa': 'hunter', 'token': login(usuario, contrasena)}
+        except Exception as e:
+            print(f"ERROR login Hunter GPS: {e}")
+            return None
+    print(f"Conector GPS '{empresa}' no implementado todavia - se omite GPS para todo el cliente")
+    return None
+
+# -- POSICION ACTUAL + GEOCODING INVERSO (para el mapa) -----------------------
+NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
+NOMINATIM_USER_AGENT = 'FlotasDash/1.0 (dash.net.pe)'
+
+def geocodificar_inverso(lat, lon):
+    """Devuelve (departamento, provincia) via Nominatim. Respeta 1 req/seg."""
+    try:
+        url = f"{NOMINATIM_URL}?format=json&lat={lat}&lon={lon}&zoom=10&addressdetails=1"
+        req = urllib.request.Request(url, headers={'User-Agent': NOMINATIM_USER_AGENT})
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        addr = data.get('address', {})
+        departamento = addr.get('state', '')
+        provincia = addr.get('county') or addr.get('state_district') or addr.get('city') or ''
+        return departamento, provincia
+    except Exception as e:
+        print(f"    Geocoding inverso fallo: {e}")
+        return '', ''
+
+def generar_posicion(datos_hunter, placa, output_file):
+    """Toma el dia mas reciente con lat/lon valida de datos_hunter y escribe
+    datos_posicion_{PLACA}.json con la ubicacion + departamento/provincia."""
+    dias = datos_hunter.get('dias', {})
+    fechas_con_posicion = [f for f in sorted(dias.keys()) if dias[f].get('ultima_lat') and dias[f].get('ultima_lon')]
+    if not fechas_con_posicion:
+        print(f"  Sin coordenadas GPS validas para {placa} - no se genera posicion")
+        return
+    ultima_fecha = fechas_con_posicion[-1]
+    dia = dias[ultima_fecha]
+    lat, lon = dia['ultima_lat'], dia['ultima_lon']
+
+    # Reutiliza el departamento/provincia si ya se geocodifico este mismo punto antes
+    departamento = provincia = ''
+    try:
+        with open(output_file, 'r', encoding='utf-8') as f:
+            anterior = json.load(f)
+        if anterior.get('lat') == lat and anterior.get('lon') == lon:
+            departamento, provincia = anterior.get('departamento', ''), anterior.get('provincia', '')
+    except Exception:
+        pass
+    if not departamento:
+        import time; time.sleep(1)  # Nominatim: maximo 1 req/seg
+        departamento, provincia = geocodificar_inverso(lat, lon)
+
+    resultado = {
+        'placa': placa, 'lat': lat, 'lon': lon,
+        'fecha_posicion': ultima_fecha,
+        'departamento': departamento, 'provincia': provincia,
+        'ultima_actualizacion': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(resultado, f, ensure_ascii=False, indent=2)
+    print(f"  OK {output_file}: {lat},{lon} ({departamento}, {provincia}) al {ultima_fecha}")
 
 # -- MANTENIMIENTOS DESDE DRIVE ---------------------------------------------
 def actualizar_mantos(gkey, file_id_mantos, output_file):
@@ -365,12 +439,10 @@ if __name__ == '__main__':
 
     print(f"Cliente: {cfg.get('empresa', {}).get('nombre', '?')} - {len(vehiculos)} vehiculo(s)")
 
-    token = None
+    gps_empresa = (cfg.get('gps', {}) or {}).get('empresa', 'hunter')
+    sesion_gps = None
     if usuario and contrasena:
-        try:
-            token = login(usuario, contrasena)
-        except Exception as e:
-            print(f"ERROR login Hunter GPS: {e}")
+        sesion_gps = preparar_sesion_gps(gps_empresa, usuario, contrasena)
     else:
         print("Faltan HUNTER_USER / HUNTER_PASS (secrets del repo) - saltando GPS")
 
@@ -382,8 +454,10 @@ if __name__ == '__main__':
         slug = placa.replace('-', '')
         print(f"\n{'=' * 60}\nVEHICULO: {placa}\n{'=' * 60}")
 
-        if token:
-            actualizar_hunter(usuario, contrasena, token, placa, f'datos_hunter_{slug}.json')
+        if sesion_gps and sesion_gps['empresa'] == 'hunter':
+            datos_gps = actualizar_hunter(usuario, contrasena, sesion_gps['token'], placa, f'datos_hunter_{slug}.json')
+            if datos_gps:
+                generar_posicion(datos_gps, placa, f'datos_posicion_{slug}.json')
 
         file_id_mantos = (v.get('file_id_mantos') or '').strip()
         if file_id_mantos and gkey:
@@ -398,7 +472,7 @@ if __name__ == '__main__':
     # los nombres genericos datos_hunter.json / datos_mantos.json
     if len(vehiculos) == 1:
         slug = vehiculos[0]['placa'].strip().replace('-', '')
-        for prefix in ('datos_hunter', 'datos_mantos'):
+        for prefix in ('datos_hunter', 'datos_mantos', 'datos_posicion'):
             src = f'{prefix}_{slug}.json'
             if os.path.exists(src):
                 shutil.copyfile(src, f'{prefix}.json')
