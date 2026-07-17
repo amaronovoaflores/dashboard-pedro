@@ -10,7 +10,7 @@ aplica a todas las placas listadas en config.json -> vehiculos.
 Mantenimientos: un file_id_mantos de Drive por VEHICULO (columna en config.json).
 """
 
-import json, urllib.request, urllib.error, ssl, math, sys, os, io, shutil
+import json, urllib.request, urllib.error, ssl, math, sys, os, io, shutil, re
 from datetime import datetime, timedelta
 
 HUNTER_LOGIN   = 'http://pxapi.24hm.net/apiGeo/login'
@@ -212,6 +212,113 @@ def actualizar_mantos(gkey, file_id_mantos, output_file):
         print(f"  Error: {e}")
         import traceback; traceback.print_exc()
 
+# -- SOAT / REVISION TECNICA (API JSON.pe, misma cuenta que TOMBO) ------------
+# Se consulta como maximo 1 vez por semana por placa (throttle abajo) para
+# cuidar el pool de creditos compartido con TOMBO (100/mes en el plan gratuito).
+JSONPE_BASE_URL = 'https://api.json.pe/api'
+JSONPE_THROTTLE_DIAS = 7
+
+def normalizar_placa(p):
+    return re.sub(r'[^A-Z0-9]', '', (p or '').upper())
+
+def fecha_a_iso(ddmmyyyy):
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})$', (ddmmyyyy or '').strip())
+    if not m: return ''
+    d, mo, y = m.groups()
+    return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
+
+def jsonpe_consultar(token, endpoint, payload):
+    req = urllib.request.Request(
+        f"{JSONPE_BASE_URL}/{endpoint}",
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}',
+                 'User-Agent': 'FlotasDash/1.0'},
+        method='POST'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+            cuerpo = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read().decode('utf-8')).get('message')
+        except Exception:
+            msg = None
+        if msg: return False, None, msg
+        if e.code == 401: return False, None, 'Token de JSON.pe invalido o vencido'
+        if e.code == 429: return False, None, 'Creditos de JSON.pe agotados o limite de velocidad'
+        return False, None, f'Error HTTP {e.code} de JSON.pe'
+    except Exception as e:
+        return False, None, f'No se pudo contactar a JSON.pe: {e}'
+    if not cuerpo.get('success', True) and not cuerpo.get('data'):
+        return False, None, cuerpo.get('message', 'Respuesta sin datos de JSON.pe')
+    return True, cuerpo.get('data'), ''
+
+def consultar_soat(token, placa):
+    ok, data, error = jsonpe_consultar(token, 'soat', {'placa': placa})
+    if not ok:
+        return {'ok': False, 'error': error}
+    fecha_fin = data.get('fecha_fin', '')
+    return {
+        'ok': True,
+        'aseguradora': data.get('nombre_compania'),
+        'estado': data.get('estado'),
+        'vigente_desde': data.get('fecha_inicio'),
+        'vigente_hasta': fecha_fin,
+        'numero_poliza': data.get('numero_poliza'),
+        'fecha_vencimiento': fecha_a_iso(fecha_fin),
+    }
+
+def consultar_revision_tecnica(token, placa):
+    ok, data, error = jsonpe_consultar(token, 'revision-tecnica', {'placa': placa})
+    if not ok:
+        return {'ok': False, 'error': error}
+    registros = data if isinstance(data, list) else [data]
+    if not registros:
+        return {'ok': False, 'error': 'La API no devolvio inspecciones'}
+    ultimo = next((r for r in registros if r.get('orden') == 'ULTIMO'), registros[0])
+    vigente_hasta = ultimo.get('vigente_hasta', '')
+    return {
+        'ok': True,
+        'estado': ultimo.get('estado'),
+        'resultado_inspeccion': ultimo.get('resultado_inspeccion'),
+        'vigente_desde': ultimo.get('vigente_desde'),
+        'vigente_hasta': vigente_hasta,
+        'certificado': ultimo.get('numero_certificado'),
+        'planta': ultimo.get('empresa_certificadora'),
+        'fecha_vencimiento': fecha_a_iso(vigente_hasta),
+    }
+
+def actualizar_soat_revision(token, placa, output_file):
+    placa = normalizar_placa(placa)
+    # Throttle: no volver a gastar creditos si ya se consulto hace menos de
+    # JSONPE_THROTTLE_DIAS dias (SOAT/revision tecnica no cambian a diario).
+    try:
+        with open(output_file, 'r', encoding='utf-8') as f:
+            existente = json.load(f)
+        ultima = existente.get('ultima_actualizacion', '')
+        if ultima:
+            edad = datetime.now() - datetime.strptime(ultima, '%Y-%m-%d %H:%M:%S')
+            if edad.days < JSONPE_THROTTLE_DIAS:
+                print(f"\n=== SOAT / REVISION TECNICA: {placa} ===")
+                print(f"  Actualizado hace {edad.days} dia(s) - se omite (throttle {JSONPE_THROTTLE_DIAS} dias)")
+                return
+    except Exception:
+        pass
+
+    print(f"\n=== SOAT / REVISION TECNICA: {placa} ===")
+    soat = consultar_soat(token, placa)
+    revision = consultar_revision_tecnica(token, placa)
+    resultado = {
+        'placa': placa,
+        'soat': soat,
+        'revision_tecnica': revision,
+        'ultima_actualizacion': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(resultado, f, ensure_ascii=False, indent=2)
+    print(f"  SOAT: {'OK' if soat.get('ok') else 'ERROR - ' + str(soat.get('error'))}")
+    print(f"  Revision tecnica: {'OK' if revision.get('ok') else 'ERROR - ' + str(revision.get('error'))}")
+
 # -- MAIN ---------------------------------------------------------------------
 if __name__ == '__main__':
     usuario    = os.environ.get('HUNTER_USER', '')
@@ -222,6 +329,8 @@ if __name__ == '__main__':
         print(f"ERROR: no se encontro {CONFIG_FILE} en el repo"); sys.exit(1)
     with open(CONFIG_FILE, encoding='utf-8') as f:
         cfg = json.load(f)
+
+    jsonpe_token = os.environ.get('JSONPE_TOKEN', '')
 
     vehiculos = [v for v in cfg.get('vehiculos', []) if v.get('placa', '').strip()]
     if not vehiculos:
@@ -238,6 +347,9 @@ if __name__ == '__main__':
     else:
         print("Faltan HUNTER_USER / HUNTER_PASS (secrets del repo) - saltando GPS")
 
+    if not jsonpe_token:
+        print("Sin JSONPE_TOKEN (secret del repo) - saltando SOAT/revision tecnica")
+
     for v in vehiculos:
         placa = v['placa'].strip()
         slug = placa.replace('-', '')
@@ -251,6 +363,9 @@ if __name__ == '__main__':
             actualizar_mantos(gkey, file_id_mantos, f'datos_mantos_{slug}.json')
         elif file_id_mantos and not gkey:
             print("  Sin GAPI_KEY (secret del repo) - saltando mantenimientos")
+
+        if jsonpe_token:
+            actualizar_soat_revision(jsonpe_token, placa, f'datos_soat_{slug}.json')
 
     # Compatibilidad: si el cliente tiene un solo vehiculo, generar tambien
     # los nombres genericos datos_hunter.json / datos_mantos.json
