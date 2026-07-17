@@ -454,6 +454,13 @@ var VEH = null; // vehículo activo
 var VEH_IDX = 0;
 var hoy = new Date();
 
+// Repo de respaldo (raw.githubusercontent.com) derivado del subdominio actual.
+// subdominio.dash.net.pe -> dashboard-subdominio (convención de la plataforma).
+// Al copiar este archivo a un cliente nuevo no hay que tocar nada acá.
+var GH_USER = 'amaronovoaflores';
+var GH_REPO = 'dashboard-' + (location.hostname.split('.')[0] || 'pedro');
+var GH_RAW = 'https://raw.githubusercontent.com/' + GH_USER + '/' + GH_REPO + '/main/';
+
 // ── ESTADO ─────────────────────────────────────────────────────────────
 var DRIVE_DATA={}, DIAS={}, DIAS2={}, ODO=0, KMS_MES=0, LAST_DAY=0, DIAS_N=31;
 var EXCEL_ODO_FIN=0, EXCEL_LAST_DATE=null, ODO_SRC='GPS';
@@ -478,7 +485,7 @@ var MSHORT='EneFebMarAbrMayJunJulAgoSepOctNovDic'.match(/.{3}/g);
 function cargarConfig(){
   setStatus('loading','Cargando configuración…');
   var urls=['config.json?t='+Date.now(),
-    'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/config.json?t='+Date.now()];
+    GH_RAW+'config.json?t='+Date.now()];
   function tryUrl(idx){
     if(idx>=urls.length){setStatus('error','No se encontró config.json');return;}
     var xhr=new XMLHttpRequest();xhr.open('GET',urls[idx],true);xhr.timeout=8000;
@@ -608,7 +615,7 @@ function buildTarifaBar(){
 function cargarMantosJSON(cb){
   var urls=['datos_mantos_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
     'datos_mantos.json?t='+Date.now(),
-    'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/datos_mantos.json?t='+Date.now()];
+    GH_RAW+'datos_mantos.json?t='+Date.now()];
   function tryM(idx){
     if(idx>=urls.length){if(cb)cb();return;}
     var x=new XMLHttpRequest();x.open('GET',urls[idx],true);x.timeout=8000;
@@ -635,8 +642,8 @@ function cargarMantosJSON(cb){
 function cargarHunterJSON(){
   var urls=['datos_hunter_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
     'datos_hunter.json?t='+Date.now(),
-    'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/datos_hunter_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
-    'https://raw.githubusercontent.com/amaronovoaflores/dashboard-pedro/main/datos_hunter.json?t='+Date.now()];
+    GH_RAW+'datos_hunter_'+VEH.placa.replace('-','')+'.json?t='+Date.now(),
+    GH_RAW+'datos_hunter.json?t='+Date.now()];
   function tryUrl(idx){
     if(idx>=urls.length){setStatus('idle','Sin datos GPS');renderAll();return;}
     var xhr=new XMLHttpRequest();xhr.open('GET',urls[idx],true);xhr.timeout=10000;
