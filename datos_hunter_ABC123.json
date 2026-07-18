@@ -1,0 +1,14 @@
+{
+  "placa": "ABC-123",
+  "ultima_actualizacion": "2026-07-18 09:00:00",
+  "dias": {
+    "2026-07-12": {"fecha":"2026-07-12","km":22.0,"odo_ini":40000,"odo_fin":40022,"registros":480,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5277,"ultima_lon":-77.5278},
+    "2026-07-13": {"fecha":"2026-07-13","km":18.4,"odo_ini":40022,"odo_fin":40040,"registros":455,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5290,"ultima_lon":-77.5301},
+    "2026-07-14": {"fecha":"2026-07-14","km":25.1,"odo_ini":40040,"odo_fin":40065,"registros":510,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5312,"ultima_lon":-77.5325},
+    "2026-07-15": {"fecha":"2026-07-15","km":19.7,"odo_ini":40065,"odo_fin":40085,"registros":470,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5330,"ultima_lon":-77.5340},
+    "2026-07-16": {"fecha":"2026-07-16","km":21.3,"odo_ini":40085,"odo_fin":40106,"registros":490,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5301,"ultima_lon":-77.5310},
+    "2026-07-17": {"fecha":"2026-07-17","km":16.9,"odo_ini":40106,"odo_fin":40123,"registros":430,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5280,"ultima_lon":-77.5290},
+    "2026-07-18": {"fecha":"2026-07-18","km":8.2,"odo_ini":40123,"odo_fin":40131,"registros":200,"fuente_km":"hunter_kilometraje","ultima_lat":-9.5277,"ultima_lon":-77.5278}
+  },
+  "total_dias": 7
+}
