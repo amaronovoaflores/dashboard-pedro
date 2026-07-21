@@ -9,27 +9,19 @@
     {"nombre": "Pedro López Flores", "ruc": "RUC 10XXXXXXXXXX"}
   ],
   "clientes": [
-    {"nombre": "Cliente Principal SAC", "ruc": "RUC 20XXXXXXXXXX"},
-    {"nombre": "Cliente Secundario SAC", "ruc": "RUC 20XXXXXXXXXX"}
+    {"nombre": "Minera Andina SAC", "ruc": "RUC 20111111111"},
+    {"nombre": "Contratistas del Sur SAC", "ruc": "RUC 20222222222"},
+    {"nombre": "Proyectos Cusco SAC", "ruc": "RUC 20333333333"}
   ],
   "vehiculos": [
-    {
-      "placa": "ABC-123",
-      "descripcion": "Toyota Hilux 4x4",
-      "tarifa_dia": 270,
-      "tarifa_km": 1.35,
-      "limite_km": 200,
-      "col_odo": 8,
-      "cuota_usd": 0,
-      "tc": 3.50,
-      "file_id_recorrido": "GOOGLE_DRIVE_FILE_ID",
-      "file_id_mantos": "GOOGLE_DRIVE_FILE_ID",
-      "seguros": [
-        {"inicio": "2024-06-01", "fin": "2025-05-31", "monto_usd": 2100},
-        {"inicio": "2025-06-01", "fin": "2026-05-31", "monto_usd": 2000},
-        {"inicio": "2026-06-01", "fin": "2027-05-31", "monto_usd": 1900}
-      ]
-    }
+    {"placa": "ABC-123", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 270, "tarifa_km": 1.35, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Minera Andina SAC", "seguros": []},
+    {"placa": "BCD-234", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 270, "tarifa_km": 1.35, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Minera Andina SAC", "seguros": []},
+    {"placa": "CDE-345", "descripcion": "Toyota Hilux 4x2", "tarifa_dia": 250, "tarifa_km": 1.20, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Minera Andina SAC", "seguros": []},
+    {"placa": "DEF-456", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 280, "tarifa_km": 1.40, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Contratistas del Sur SAC", "seguros": []},
+    {"placa": "EFG-567", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 280, "tarifa_km": 1.40, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Contratistas del Sur SAC", "seguros": []},
+    {"placa": "FGH-678", "descripcion": "Toyota Hilux 4x2", "tarifa_dia": 255, "tarifa_km": 1.25, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Contratistas del Sur SAC", "seguros": []},
+    {"placa": "GHI-789", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 275, "tarifa_km": 1.38, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Proyectos Cusco SAC", "seguros": []},
+    {"placa": "HIJ-890", "descripcion": "Toyota Hilux 4x4", "tarifa_dia": 275, "tarifa_km": 1.38, "limite_km": 200, "col_odo": 8, "cuota_usd": 0, "tc": 3.50, "asignado": "Proyectos Cusco SAC", "seguros": []}
   ],
   "cuentas": {
     "bcp_numero": "XXXXXXXXXXXXXXX",
